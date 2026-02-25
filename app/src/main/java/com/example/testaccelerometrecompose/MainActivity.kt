@@ -45,6 +45,11 @@ class MainActivity : ComponentActivity(), SensorEventListener {
         // Verificació de disponibilitat (Bona pràctica) [cite: 211, 304]
         mAccelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
 
+        if (mAccelerometer == null) {
+            // Si no existeix, avisem l'usuari [cite: 214, 304]
+            Toast.makeText(this, "Aquest dispositiu no té acceleròmetre", Toast.LENGTH_LONG).show()
+        }
+
         lastUpdate = System.currentTimeMillis()
 
         enableEdgeToEdge()
