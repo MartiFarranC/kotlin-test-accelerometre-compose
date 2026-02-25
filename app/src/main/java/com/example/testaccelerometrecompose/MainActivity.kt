@@ -22,6 +22,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -30,25 +31,28 @@ import com.example.testaccelerometrecompose.ui.theme.TestAccelerometreComposeThe
 class MainActivity : ComponentActivity(), SensorEventListener {
 
     private lateinit var sensorManager: SensorManager
+    private var mAccelerometer: Sensor? = null
     private var lastUpdate: Long = 0
 
-    private var color : MutableState<Boolean> = mutableStateOf(false)
+    // Referència per poder actualitzar l'estat de Compose des del listener
+    private var colorState: MutableState<Boolean>? = null
 
-        @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
-        override fun onCreate(savedInstanceState: Bundle?) {
+    @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
+    override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
-        sensorManager.registerListener(
-                this,
-                sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER),
-                SensorManager.SENSOR_DELAY_NORMAL
-            )
-        // register this class as a listener for the accelerometer sensor
+        // Verificació de disponibilitat (Bona pràctica) [cite: 211, 304]
+        mAccelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+
         lastUpdate = System.currentTimeMillis()
 
         enableEdgeToEdge()
         setContent {
+            // rememberSaveable evita que el color torni a verd en girar la pantalla
+            val color = rememberSaveable { mutableStateOf(false) }
+            colorState = color
+
             TestAccelerometreComposeTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) {
                     SensorsInfo(color)
@@ -57,17 +61,29 @@ class MainActivity : ComponentActivity(), SensorEventListener {
         }
     }
 
-    override fun onSensorChanged(p0: SensorEvent) {
-        getAccelerometer(p0)
+    override fun onResume() {
+        super.onResume()
+        // Registrem el listener aquí per reactivar el sensor en tornar a l'app [cite: 1196, 1203]
+        mAccelerometer?.let {
+            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
+        }
     }
 
-    override fun onAccuracyChanged(p0: Sensor?, p1: Int) {
-        if (p0?.type == Sensor.TYPE_LIGHT) Toast.makeText(
-            this,
-            getString(R.string.changAcc, p1),
-            Toast.LENGTH_SHORT
-        ).show()
+    override fun onPause() {
+        super.onPause()
+        // Unregister per estalviar bateria quan l'app no és visible [cite: 252, 258, 1292]
+        sensorManager.unregisterListener(this)
+    }
 
+    override fun onSensorChanged(event: SensorEvent) {
+        // Identifiquem el sensor abans de processar [cite: 262, 263]
+        if (event.sensor.type == Sensor.TYPE_ACCELEROMETER) {
+            getAccelerometer(event)
+        }
+    }
+
+    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
+        // Callback obligatori de la interfície [cite: 233, 234]
     }
 
     private fun getAccelerometer(event: SensorEvent) {
@@ -87,14 +103,10 @@ class MainActivity : ComponentActivity(), SensorEventListener {
             }
             lastUpdate = actualTime
             Toast.makeText(this, R.string.shuffed, Toast.LENGTH_SHORT).show()
-            color.value = !(color.value)
-        }
-    }
 
-    override fun onPause() {
-        // unregister listener
-        super.onPause()
-        sensorManager.unregisterListener(this)
+            // Actualitzem l'estat persistent
+            colorState?.value = !(colorState?.value ?: false)
+        }
     }
 }
 
